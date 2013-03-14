@@ -1,0 +1,10 @@
+---
+# This is an included task file for standard minimum stuff on a server
+#
+# I have not included it here as its specific to our environment
+# but it sets up the basic expected server - standard base packages
+# standard users etc
+
+- action: debug "Nothing to see here"
+
+# end

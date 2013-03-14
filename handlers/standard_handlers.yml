@@ -1,0 +1,53 @@
+---
+# Standard set of handlers for playbooks
+
+- name: restart ntpd
+  action: service name=ntpd state=restarted
+
+- name: restart sshd
+  action: service name=sshd state=restarted enabled=yes
+
+- name: restart ntp
+  action: service name=ntpd state=restarted
+
+- name: restart ssh
+  action: service name=sshd state=restarted enabled=yes
+
+- name: restart postgresql
+  action: service name=postgresql state=restarted enabled=yes
+
+- name: restart lighttpd
+  action: service name=lighttpd state=restarted enabled=yes
+
+- name: restart rsyslog
+  action: service name=rsyslog state=restarted enabled=yes
+
+- name: restart proftpd
+  action: service name=proftpd state=restarted enabled=yes
+
+- name: restart httpd
+  action: service name=httpd state=restarted enabled=yes
+
+- name: restart iptables
+  action: service name=iptables state=restarted enabled=yes
+
+- name: rebuild sendmail
+  action: command chdir=/etc/mail make
+
+- name: restart sendmail
+  action: service name=sendmail state=restarted enabled=yes
+
+- name: restart exim
+  action: service name=exim state=restarted enabled=yes
+
+- name: restart exim4
+  action: service name=exim4 state=restarted enabled=yes
+
+- name: restart mysql
+  action: service name=mysql state=restarted enabled=yes
+
+- name: restart mysqld
+  action: service name=mysqld state=restarted enabled=yes
+
+- name: etckeeper commit
+  action: command etckeeper commit -m 'ansible triggered commit'

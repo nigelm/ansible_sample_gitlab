@@ -1,0 +1,51 @@
+---
+# This is an included task file to install and secure mysql server
+#
+
+- name: ensure a mysql root password for this - fail if not
+  action: fail No mysql root password defined
+  when_unset: $mysql_root_password
+
+- name: ensure mysql server package installed
+  action: yum name=mysql-server state=present
+  register: mysql_server_installed
+  when_string: $ansible_distribution == 'CentOS'
+
+- name: ensure mysql and related packages up to date
+  action: yum name=$item state=latest
+  with_items:
+    - mysql
+    - mysql-server
+    - MySQL-python
+  when_string: $ansible_distribution == 'CentOS'
+  notify:
+    - restart mysqld
+
+- name: ensure mysql running now and on reboot
+  action: service name=mysqld enabled=yes state=started
+  when_string: $ansible_distribution == 'CentOS'
+
+- name: ensure mysql server package installed
+  action: apt pkg=mysql-server state=present
+  register: mysql_server_installed
+  when_string: $ansible_distribution == 'Ubuntu'
+
+- name: ensure mysql and related packages up to date
+  action: apt pkg=$item state=latest
+  with_items:
+    - mysql-client
+    - mysql-server
+    - python-mysqldb
+  when_string: $ansible_distribution == 'Ubuntu'
+  notify:
+    - restart mysql
+
+- name: ensure mysql running now and on reboot
+  action: service name=mysql enabled=yes state=started
+  when_string: $ansible_distribution == 'Ubuntu'
+
+- name: secure the mysql installation if this is first time through
+  action: script scripts/secure_mysqld.sh $mysql_root_password
+  when_changed: $mysql_server_installed
+
+# end

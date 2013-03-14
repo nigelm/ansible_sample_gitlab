@@ -1,0 +1,262 @@
+---
+# playbook to setup gitlab machine
+#
+# based on
+#     https://github.com/gitlabhq/gitlabhq/blob/stable/doc/install/installation.md
+#
+# The following stages are defined as tags within here, allowing you to just run
+# parts of this (since the build stages are lengthy) - however you can't just run
+# later ones unless the earlier ones have been run at some point!
+#    - buildsetup
+#    - rubybuild
+#    - gituser
+#    - gitolite
+#    - database
+#    - gitlabbuild
+#    - gitlabconf
+#    - nginx
+#    - backup
+
+- hosts: gitlab.local
+  sudo: True
+  vars:
+    mysql_root_password: ChangeMe
+    mysql_gitlab_password: ChangeMeAsWell
+    ruby_version: 1.9.3-p327
+    gitlab_tag: 4-2-stable
+    gitlab_recipe_tag: 4-2-stable
+
+  handlers:
+    - include: handlers/standard_handlers.yml
+
+  tasks:
+    - include: tasks/standard_server.yml
+    - include: tasks/install_mysqld.yml
+    - include: tasks/config_exim_smarthost.yml
+
+    - name: Add required packages for gitlab
+      action: apt pkg=$item state=latest
+      with_items:
+        - build-essential
+        - zlib1g-dev
+        - libyaml-dev
+        - libssl-dev
+        - libgdbm-dev
+        - libreadline-dev
+        - libncurses5-dev
+        - libffi-dev
+        - curl
+        - git-core
+        - openssh-server
+        - redis-server
+        - checkinstall
+        - libxml2-dev
+        - libxslt1-dev
+        - libcurl4-openssl-dev
+        - libicu-dev
+        - libmysqlclient-dev
+      tags:
+        - buildsetup
+
+    # The script here checks if ruby is installed, is the right version, and
+    # if not grabs and builds it.  Unfortunately at present this always shows
+    # as changed even if no changes were made (can be fixed by upcoming ansible)
+    - name: Build Ruby
+      action: script scripts/install_ruby.sh $ruby_version
+      tags:
+        - rubybuild
+
+    - name: Add Git user
+      action: >
+        user
+        name=git
+        comment='Git Version Control'
+        createhome=yes
+        home=/home/git
+        shell=/bin/sh
+        state=present
+        system=yes
+      tags:
+        - gituser
+
+    - name: Add GitLab user
+      action: >
+        user
+        name=gitlab
+        comment='GitLab User'
+        createhome=yes
+        generate_ssh_key=yes
+        groups=git
+        home=/home/gitlab
+        password='$6$CIGooeH1$Gn6LZE.ayo94tXHPFx0CML.csFfSkUTcXToHMnzD44.CHIow5p3ojPdmzKBe/KxYQVewFyo1CiBJmDl5ko49W0'
+        shell=/bin/sh
+        state=present
+        system=no
+      tags:
+        - gituser
+
+    - name: Checkout gitolite repository
+      action: git repo=https://github.com/gitlabhq/gitolite.git dest=/home/git/gitolite version=gl-v320
+      tags:
+        - gitolite
+
+    - name: Fix gitolite repo permissions
+      action: file path=/home/git/gitolite state=directory recurse=yes owner=git group=git
+      tags:
+        - gitolite
+
+    - name: Fix gitolite repo permissions - because above command has issues
+      action: command chown -R git.git /home/git/gitolite
+      tags:
+        - gitolite
+
+    - name: Create bin directory
+      action: file path=/home/git/bin state=directory mode=0755 owner=git group=git
+      tags:
+        - gitolite
+
+    - name: Create profile 
+      action: template dest=/home/git/.profile src=templates/gitlab/profile.j2 mode=0755 owner=git group=git
+      tags:
+        - gitolite
+
+    - name: Run gitolite install
+      action: command sudo -u git -H sh -c '/home/git/gitolite/install -ln /home/git/bin'
+      tags:
+        - gitolite
+
+    - name: Copy gitlab key into place
+      action: command install -o git -m0444 /home/gitlab/.ssh/id_rsa.pub /home/git/gitlab.pub
+      tags:
+        - gitolite
+
+    - name: Install gitlab ssh key
+      action: command sudo -u git -H sh -c "PATH=/home/git/bin:$PATH; gitolite setup -pk /home/git/gitlab.pub"
+      tags:
+        - gitolite
+
+    - name: Allow gitlab access
+      action: file path=$item state=directory owner=git group=git mode=0750
+      with_items:
+        - /home/git
+        - /home/git/.gitolite
+      tags:
+        - gitolite
+
+    - name: Set repositories ownership
+      action: command chown -R git.git /home/git/repositories
+      tags:
+        - gitolite
+
+    - name: Set repositories permissions
+      action: command chmod -R $item /home/git/repositories
+      with_items:
+        - 'ug+rwX,o-rwx'
+        - 'ug-s'
+      tags:
+        - gitolite
+
+    - name: Set repositories permissions (2)
+      action: shell find /home/git/repositories/ -type d -print0 | sudo xargs -0 chmod g+s
+      tags:
+        - gitolite
+
+    - name: Ensure gitlabhq_production database on mysqld
+      action: mysql_db login_user=root login_password=$mysql_root_password name=gitlabhq_production state=present encoding=utf8 collation=utf8_unicode_ci
+      tags:
+        - database
+
+    - name: Ensure gitlab user on mysqld
+      action: mysql_user login_user=root login_password=$mysql_root_password name=gitlab password=$mysql_gitlab_password state=present priv=gitlabhq_production.*:SELECT,INSERT,UPDATE,DELETE,CREATE,DROP,INDEX,ALTER
+      tags:
+        - database
+
+    - name: Checkout gitlab repository
+      action: git repo=https://github.com/gitlabhq/gitlabhq.git dest=/home/gitlab/gitlab version=$gitlab_tag force=no
+      tags:
+        - gitlabbuild
+
+    - name: Checkout gitlab recipes repository
+      action: git repo=https://github.com/gitlabhq/gitlab-recipes.git dest=/home/gitlab/gitlab-recipes version=$gitlab_recipe_tag force=no
+      tags:
+        - gitlabbuild
+
+    - name: Setup gitlab account
+      action: script scripts/setup_gitlab.sh
+      tags:
+        - gitlabbuild
+
+    - name: Configure gitlab
+      action: template dest=/home/gitlab/gitlab/config/gitlab.yml src=templates/gitlab/gitlab.yml.j2 mode=0444 owner=gitlab group=gitlab
+      tags:
+        - gitlabconf
+
+    - name: Configure unicorn
+      action: template dest=/home/gitlab/gitlab/config/unicorn.rb src=templates/gitlab/unicorn.rb.j2 mode=0444 owner=gitlab group=gitlab
+      tags:
+        - gitlabconf
+
+    - name: Configure database
+      action: template dest=/home/gitlab/gitlab/config/database.yml src=templates/gitlab/database.yml.j2 mode=0444 owner=gitlab group=gitlab
+      tags:
+        - gitlabconf
+
+    - name: Install charlock homes gem
+      action: command chdir=/home/gitlab/gitlab /usr/local/bin/gem install charlock_holmes --version '0.6.9'
+      tags:
+        - gitlabconf
+
+    - name: Enable gitlab on startup
+      action: command update-rc.d gitlab defaults 70 30
+      tags:
+        - gitlabconf
+
+    - name: Enable gitlab on startup
+      action: service name=gitlab enabled=yes
+      tags:
+        - gitlabconf
+
+    - name: Add packages for nginx
+      action: apt pkg=$item state=latest
+      with_items:
+        - nginx
+      tags:
+        - nginx
+
+    - name: nginx config
+      action: template dest=/etc/nginx/sites-available/gitlab src=templates/gitlab/nginx.j2 mode=0444 owner=root group=root
+      tags:
+        - nginx
+
+    - name: link nginx config
+      action: file src=/etc/nginx/sites-available/gitlab path=/etc/nginx/sites-enabled/gitlab state=link
+      tags:
+        - nginx
+
+    - name: Enable nginx on startup
+      action: service name=nginx enabled=yes state=started
+      tags:
+        - nginx
+
+    - name: Ensure gitlab bin directory
+      action: file path=/home/gitlab/bin state=directory owner=gitlab group=gitlab mode=0755
+      tags:
+        - backup
+
+    - name: Create backup script
+      action: template dest=/home/gitlab/bin/gitlab_backup.sh src=templates/gitlab/gitlab_backup.j2 mode=0755 owner=root group=root
+      tags:
+        - backup
+
+    - name: Ensure daily gitlab backup
+      action: cron name="gitlab backup" user=gitlab hour=18 minute=8 job=/home/gitlab/bin/gitlab_backup.sh
+      tags:
+        - backup
+
+    ## the version of this I use has additional config here that sets up
+    ## a mechanism to get the gitlab backup off the machine.  Its a bit
+    ## bit specific to our environment, so I have removed it from here.
+
+
+# end
+

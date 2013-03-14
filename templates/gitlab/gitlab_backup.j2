@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+#
+export PATH=/bin:/usr/bin:/usr/local/bin
+
+cd ${HOME}/gitlab
+
+# some swine made the backup script output color escape
+# sequences apparently unconditionally.... so the perl
+# code removes them.  Nasty horrible hack!
+rake RAILS_ENV=production gitlab:backup:create 2>&1 |\
+    perl -MTerm::ANSIColor -ne 'print Term::ANSIColor::colorstrip($_)'
+
+# end

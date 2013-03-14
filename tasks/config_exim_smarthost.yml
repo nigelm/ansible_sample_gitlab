@@ -1,0 +1,52 @@
+---
+# This is an included task file to install exim with a smarthost config
+#
+- name: Make sure we have sufficient config for exim
+  action: fail Insufficient config for exim
+  when_unset: ${mail_server.host}
+
+- name: ensure exim server package installed
+  action: yum name=exim state=latest
+  register: exim_server_installed
+  when_string: $ansible_distribution == 'CentOS'
+
+- name: ensure other email transports not installed
+  action: yum name=$item state=absent
+  with_items:
+    - sendmail
+    - postfix
+  when_string: $ansible_distribution == 'CentOS'
+
+- name: ensure exim server package installed
+  action: apt pkg=exim4-daemon-light state=latest
+  register: exim_server_installed
+  when_string: $ansible_distribution == 'Ubuntu'
+
+- name: ensure other email transports not installed
+  action: apt pkg=$item state=absent
+  with_items:
+    - sendmail
+    - postfix
+  when_string: $ansible_distribution == 'Ubuntu'
+
+- name: build an exim smarthost config
+  action: template src=templates/general/exim_smarthost.conf.j2 dest=/etc/exim/exim.conf owner=root group=root mode=0440
+  notify:
+    - restart exim
+  when_string: $ansible_distribution == 'CentOS'
+
+- name: build an exim smarthost config
+  action: template src=templates/general/exim_smarthost.conf.j2 dest=/etc/exim4/exim4.conf owner=root group=root mode=0440
+  notify:
+    - restart exim4
+  when_string: $ansible_distribution == 'Ubuntu'
+
+- name: ensure exim running now and on reboot
+  action: service name=exim enabled=yes state=started
+  when_string: $ansible_distribution == 'CentOS'
+
+- name: ensure exim running now and on reboot
+  action: service name=exim4 enabled=yes state=started
+  when_string: $ansible_distribution == 'Ubuntu'
+
+# end

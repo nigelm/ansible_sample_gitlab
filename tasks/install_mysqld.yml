@@ -41,7 +41,7 @@
     - restart mysql
 
 - name: ensure mysql running now and on reboot
-  action: service name=mysql enabled=yes state=started
+  action: service name=mysql enabled=yes state=restarted
   when_string: $ansible_distribution == 'Ubuntu'
 
 - name: secure the mysql installation if this is first time through

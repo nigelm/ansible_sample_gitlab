@@ -1,0 +1,8 @@
+---
+- hosts: all
+  sudo: yes
+  sudo_user: gitlab
+  tasks:
+    - name: "Command to populate database"
+      action: shell yes 'yes' | bundle exec rake gitlab:setup RAILS_ENV=production chdir=/home/gitlab/gitlab
+      ignore_errors: yes

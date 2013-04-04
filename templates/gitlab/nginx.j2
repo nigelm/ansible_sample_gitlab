@@ -7,7 +7,7 @@ upstream gitlab {
 }
 
 server {
-  listen {{ ansible_default_ipv4.address }}:80 default_server;         # e.g., listen 192.168.1.1:80;
+  listen {{ ansible_default_ipv4.address }}:{{ nginx_port }} default_server;         # e.g., listen 192.168.1.1:80;
   server_name {{ inventory_hostname }};     # e.g., server_name source.example.com;
   root /home/gitlab/gitlab/public;
 

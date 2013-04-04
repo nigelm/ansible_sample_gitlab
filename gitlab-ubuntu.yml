@@ -20,8 +20,6 @@
 - hosts: gitlab.local
   sudo: True
   vars:
-    mysql_root_password: ChangeMe
-    mysql_gitlab_password: ChangeMeAsWell
     ruby_version: 1.9.3-p327
     gitlab_tag: 4-2-stable
     gitlab_recipe_tag: 4-2-stable
@@ -115,7 +113,7 @@
       tags:
         - gitolite
 
-    - name: Create profile 
+    - name: Create profile
       action: template dest=/home/git/.profile src=templates/gitlab/profile.j2 mode=0755 owner=git group=git
       tags:
         - gitolite
@@ -212,7 +210,7 @@
         - gitlabconf
 
     - name: Enable gitlab on startup
-      action: service name=gitlab enabled=yes
+      action: service name=gitlab enabled=yes state=restarted
       tags:
         - gitlabconf
 
@@ -257,6 +255,6 @@
     ## a mechanism to get the gitlab backup off the machine.  Its a bit
     ## bit specific to our environment, so I have removed it from here.
 
-
+- include: populate_database.yml
 # end
 

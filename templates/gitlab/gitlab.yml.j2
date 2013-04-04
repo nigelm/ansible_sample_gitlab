@@ -1,4 +1,4 @@
-# # # # # # # # # # # # # # # # # # 
+# # # # # # # # # # # # # # # # # #
 # Gitlab application config file  #
 # # # # # # # # # # # # # # # # # #
 #
@@ -16,7 +16,7 @@
 gitlab:
   ## Web server settings
   host: {{ inventory_hostname }}
-  port: 80
+  port: {{ gunicorn_port }}
   https: false
   # Uncomment and customize to run in non-root path
   # Note that ENV['RAILS_RELATIVE_URL_ROOT'] in config/unicorn.rb may need to be changed

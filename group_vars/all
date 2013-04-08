@@ -1,0 +1,9 @@
+nginx_port: 8080
+unicorn_port: 8888
+
+mail_server:
+    host:       10.0.0.4
+    port:       587
+    domain:     development.example.com
+    auth_user:  mailauthuser
+    auth_pass:  mailauthpass
